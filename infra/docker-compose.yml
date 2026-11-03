@@ -1,0 +1,13 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: infra/dockerfiles/api.Dockerfile
+    container_name: chronosbench_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    volumes:
+      - ../data:/app/data
+    restart: unless-stopped

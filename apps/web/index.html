@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChronosBench + VerityGate</title>
+  <style>
+    :root {
+      --bg: #f5efe7;
+      --ink: #1d1b1a;
+      --accent: #0f766e;
+      --card: #fff9f0;
+      --line: #d9cfc1;
+      --warn: #b45309;
+      --ok: #166534;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 10% 10%, #fff6d6 0, #f5efe7 45%, #efe4d2 100%);
+    }
+    .wrap { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+    .hero { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    h1 { margin: 0 0 8px; font-size: 1.8rem; }
+    .muted { color: #5d5449; }
+    .grid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin-top: 16px; }
+    .panel { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fffdf9; }
+    textarea { width: 100%; min-height: 120px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+    button {
+      border: none; border-radius: 10px; padding: 10px 14px; color: white; background: var(--accent); cursor: pointer;
+      font-weight: 600;
+    }
+    pre { white-space: pre-wrap; background: #fcf8f2; border: 1px dashed var(--line); padding: 10px; border-radius: 10px; }
+    .status-ok { color: var(--ok); font-weight: 700; }
+    .status-warn { color: var(--warn); font-weight: 700; }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>ChronosBench + VerityGate</h1>
+      <p class="muted">Framework-agnostic benchmark and stale-answer detector with Tavily-backed verification.</p>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Quick Verify</h3>
+        <textarea id="verifyInput">To serialize a model in Pydantic, call .dict() and use @validator.</textarea>
+        <p><button onclick="runVerify()">Run /api/v1/verify</button></p>
+        <pre id="verifyOutput">Waiting...</pre>
+      </div>
+
+      <div class="panel">
+        <h3>Health</h3>
+        <p><button onclick="checkHealth()">Run /api/v1/health</button></p>
+        <pre id="healthOutput">Waiting...</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function runVerify() {
+      const text = document.getElementById('verifyInput').value;
+      const res = await fetch('/api/v1/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, mode: 'advisory', options: { persist: true, include_evidence: true } })
+      });
+      const data = await res.json();
+      document.getElementById('verifyOutput').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function checkHealth() {
+      const res = await fetch('/api/v1/health');
+      const data = await res.json();
+      document.getElementById('healthOutput').textContent = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>

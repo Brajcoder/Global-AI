@@ -1,0 +1,32 @@
+[
+  {
+    "id": "task_software_001",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "Explain the correct serialization and validator APIs in Pydantic V2 and mention why old patterns are stale.",
+    "expected_focus": ["pydantic", "model_dump", "field_validator"]
+  },
+  {
+    "id": "task_pricing_001",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "Summarize current model token pricing and explain how to avoid stale pricing claims.",
+    "expected_focus": ["pricing", "official source", "timestamp"]
+  },
+  {
+    "id": "task_leadership_001",
+    "cohort": "changed_facts_leadership_compliance",
+    "prompt": "How should an agent verify current leadership and compliance effective dates before answering?",
+    "expected_focus": ["filings", "government portals", "uncertainty"]
+  },
+  {
+    "id": "task_conflict_001",
+    "cohort": "conflicting_sources",
+    "prompt": "If two credible sources disagree on an SDK benchmark, what status should be returned and why?",
+    "expected_focus": ["needs_review", "contradicted", "explainability"]
+  },
+  {
+    "id": "task_stable_001",
+    "cohort": "stable_and_insufficient",
+    "prompt": "Differentiate stable facts from unverifiable claims and explain when to skip live search.",
+    "expected_focus": ["stable", "unverified", "policy"]
+  }
+]
