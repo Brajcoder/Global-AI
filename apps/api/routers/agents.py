@@ -6,19 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from apps.api.services import hash_prompt, manifest_to_fingerprint
-from packages.contracts.database import AgentManifestDB, get_session
+from packages.contracts.database import AgentManifestDB, session_dep
 from packages.contracts.schemas import AgentRegisterRequest
 
 router = APIRouter(prefix="/api/v1", tags=["agents"])
 
 
-def _session_dep():
-    with get_session() as session:
-        yield session
-
-
 @router.post("/agents/register")
-def register_agent(payload: AgentRegisterRequest, session: Session = Depends(_session_dep)):
+def register_agent(payload: AgentRegisterRequest, session: Session = Depends(session_dep)):
     existing = session.get(AgentManifestDB, payload.agent_id)
     prompt_hash = hash_prompt(payload.prompts.system_prompt + payload.prompts.instruction_template)
 
@@ -41,7 +36,7 @@ def register_agent(payload: AgentRegisterRequest, session: Session = Depends(_se
     )
 
     if existing:
-        for key, value in row.model_dump().items():
+        for key, value in row.model_dump(exclude={"created_at"}).items():
             setattr(existing, key, value)
         session.add(existing)
         session.commit()
@@ -55,13 +50,13 @@ def register_agent(payload: AgentRegisterRequest, session: Session = Depends(_se
 
 
 @router.get("/agents")
-def list_agents(session: Session = Depends(_session_dep)):
+def list_agents(session: Session = Depends(session_dep)):
     rows = session.exec(select(AgentManifestDB)).all()
     return [manifest_to_fingerprint(r) for r in rows]
 
 
 @router.get("/agents/{agent_id}")
-def get_agent(agent_id: str, session: Session = Depends(_session_dep)):
+def get_agent(agent_id: str, session: Session = Depends(session_dep)):
     row = session.get(AgentManifestDB, agent_id)
     if not row:
         raise HTTPException(status_code=404, detail="Agent not found")

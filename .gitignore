@@ -8,3 +8,4 @@ __pycache__/
 *.sqlite
 data/*.db
 data/*.sqlite
+data/

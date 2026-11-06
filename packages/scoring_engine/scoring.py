@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
-
 STATUS_MULTIPLIER = {
     "VERIFIED": 1.0,
     "STABLE": 1.0,
@@ -13,10 +12,21 @@ STATUS_MULTIPLIER = {
     "CONTRADICTED": 0.0,
 }
 
+# Evidence without a publish date is neither fresh nor stale: score it neutral instead of perfect.
+UNKNOWN_DATE_FRESHNESS = 50.0
+
+# Claims that were not checked live (stable facts, opinions) get neutral scores instead of 100s,
+# so an answer full of vague, uncheckable statements cannot outscore one with verified claims.
+UNCHECKED_SUPPORT = 70.0
+UNCHECKED_SOURCE_QUALITY = 70.0
+UNCHECKED_FRESHNESS = 100.0
+
 
 def freshness_score(published_at: datetime | None, retrieved_at: datetime, half_life_days: int) -> float:
-    if half_life_days <= 0 or published_at is None:
+    if half_life_days <= 0:
         return 100.0
+    if published_at is None:
+        return UNKNOWN_DATE_FRESHNESS
 
     if published_at.tzinfo is None:
         published_at = published_at.replace(tzinfo=timezone.utc)
