@@ -62,21 +62,32 @@
   </div>
 
   <script>
-    async function runVerify() {
+    async function callApi(url, options, outputId) {
+      const out = document.getElementById(outputId);
+      out.textContent = 'Loading...';
+      try {
+        const res = await fetch(url, options);
+        const body = await res.text();
+        let pretty = body;
+        try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch (_) { /* not JSON */ }
+        out.textContent = res.ok ? pretty : `Error ${res.status}
+${pretty}`;
+      } catch (err) {
+        out.textContent = `Request failed: ${err}`;
+      }
+    }
+
+    function runVerify() {
       const text = document.getElementById('verifyInput').value;
-      const res = await fetch('/api/v1/verify', {
+      return callApi('/api/v1/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, mode: 'advisory', options: { persist: true, include_evidence: true } })
-      });
-      const data = await res.json();
-      document.getElementById('verifyOutput').textContent = JSON.stringify(data, null, 2);
+      }, 'verifyOutput');
     }
 
-    async function checkHealth() {
-      const res = await fetch('/api/v1/health');
-      const data = await res.json();
-      document.getElementById('healthOutput').textContent = JSON.stringify(data, null, 2);
+    function checkHealth() {
+      return callApi('/api/v1/health', {}, 'healthOutput');
     }
   </script>
 </body>
