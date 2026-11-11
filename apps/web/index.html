@@ -6,89 +6,477 @@
   <title>ChronosBench + VerityGate</title>
   <style>
     :root {
-      --bg: #f5efe7;
-      --ink: #1d1b1a;
-      --accent: #0f766e;
-      --card: #fff9f0;
-      --line: #d9cfc1;
-      --warn: #b45309;
-      --ok: #166534;
+      --bg: #f5efe7; --ink: #1d1b1a; --muted: #5d5449; --accent: #0f766e; --accent-ink: #ffffff;
+      --card: #fffdf9; --line: #d9cfc1; --soft: #fcf8f2;
+      --ok: #166534; --ok-bg: #dcfce7; --bad: #b91c1c; --bad-bg: #fee2e2;
+      --warn: #b45309; --warn-bg: #fef3c7; --neutral: #475569; --neutral-bg: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171514; --ink: #f1ebe3; --muted: #b3a898; --accent: #2dd4bf; --accent-ink: #062321;
+        --card: #211e1c; --line: #3a3531; --soft: #1b1917;
+        --ok: #86efac; --ok-bg: #14321f; --bad: #fca5a5; --bad-bg: #3f1616;
+        --warn: #fcd34d; --warn-bg: #3b2a0a; --neutral: #cbd5e1; --neutral-bg: #2b3340;
+      }
     }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Segoe UI", "Trebuchet MS", sans-serif;
-      color: var(--ink);
-      background: radial-gradient(circle at 10% 10%, #fff6d6 0, #f5efe7 45%, #efe4d2 100%);
-    }
-    .wrap { max-width: 980px; margin: 24px auto; padding: 0 16px; }
-    .hero { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
-    h1 { margin: 0 0 8px; font-size: 1.8rem; }
-    .muted { color: #5d5449; }
-    .grid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin-top: 16px; }
-    .panel { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fffdf9; }
-    textarea { width: 100%; min-height: 120px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
-    button {
-      border: none; border-radius: 10px; padding: 10px 14px; color: white; background: var(--accent); cursor: pointer;
-      font-weight: 600;
-    }
-    pre { white-space: pre-wrap; background: #fcf8f2; border: 1px dashed var(--line); padding: 10px; border-radius: 10px; }
-    .status-ok { color: var(--ok); font-weight: 700; }
-    .status-warn { color: var(--warn); font-weight: 700; }
-    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.45; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
+    header h1 { margin: 0; font-size: 1.6rem; }
+    .muted { color: var(--muted); }
+    .small { font-size: 0.85rem; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 16px; }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: var(--neutral-bg); color: var(--neutral); white-space: nowrap; }
+    .pill.ok { background: var(--ok-bg); color: var(--ok); }
+    .pill.bad { background: var(--bad-bg); color: var(--bad); }
+    .pill.warn { background: var(--warn-bg); color: var(--warn); }
+    nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; }
+    nav button { background: none; color: var(--muted); border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 10px 14px; font-weight: 600; }
+    nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .panel { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--card); margin-bottom: 16px; }
+    .panel h2 { margin: 0 0 10px; font-size: 1.1rem; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+    input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--ink); background: var(--soft); }
+    textarea { min-height: 110px; resize: vertical; }
+    .row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 12px; }
+    button { border: none; border-radius: 8px; padding: 9px 14px; color: var(--accent-ink); background: var(--accent); cursor: pointer; font: inherit; font-weight: 600; }
+    button.ghost { background: none; color: var(--accent); border: 1px solid var(--line); padding: 5px 10px; font-size: 0.85rem; }
+    button.danger { color: var(--bad); }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .answer { background: var(--soft); border: 1px dashed var(--line); border-radius: 10px; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    mark { border-radius: 4px; padding: 1px 2px; color: inherit; }
+    mark.VERIFIED, mark.STABLE { background: var(--ok-bg); }
+    mark.STALE, mark.CONTRADICTED { background: var(--bad-bg); text-decoration: underline wavy var(--bad); }
+    mark.UNVERIFIED, mark.NEEDS_REVIEW { background: var(--warn-bg); }
+    .claim { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; background: var(--soft); }
+    .claim p { margin: 6px 0; overflow-wrap: anywhere; }
+    .patch { border-left: 3px solid var(--accent); padding-left: 10px; }
+    .score { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    progress { width: 100%; height: 10px; accent-color: var(--accent); }
+    .error { color: var(--bad); font-weight: 600; overflow-wrap: anywhere; }
+    a { color: var(--accent); overflow-wrap: anywhere; }
+    code { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 0.85em; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <h1>ChronosBench + VerityGate</h1>
-      <p class="muted">Framework-agnostic benchmark and stale-answer detector with Tavily-backed verification.</p>
-    </div>
+<div class="wrap">
+  <header>
+    <h1>ChronosBench + VerityGate</h1>
+    <div class="muted">Benchmark research agents and catch stale answers with live evidence.</div>
+    <div class="bar" id="statusBar"><span class="pill">Connecting...</span></div>
+  </header>
 
-    <div class="grid">
-      <div class="panel">
-        <h3>Quick Verify</h3>
-        <textarea id="verifyInput">To serialize a model in Pydantic, call .dict() and use @validator.</textarea>
-        <p><button onclick="runVerify()">Run /api/v1/verify</button></p>
-        <pre id="verifyOutput">Waiting...</pre>
+  <nav id="tabs">
+    <button data-tab="verify" class="active">Verify</button>
+    <button data-tab="bench">Benchmark</button>
+    <button data-tab="agents">Agents</button>
+    <button data-tab="providers">Model providers</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+
+  <!-- VERIFY -->
+  <section id="tab-verify">
+    <div class="panel">
+      <h2>Verify an answer</h2>
+      <textarea id="verifyInput">To serialize a model in Pydantic, call .dict() and use @validator. Binary search runs in O(log n) time.</textarea>
+      <div class="row" style="margin-top:12px">
+        <div><label for="verifyMode">Mode</label>
+          <select id="verifyMode"><option value="advisory">advisory (warn)</option><option value="strict">strict (block stale answers)</option></select></div>
+        <div><label for="verifyJudge">Stance judge</label><select id="verifyJudge"></select></div>
+        <div><label for="verifyModel">Judge model (optional)</label><input id="verifyModel" placeholder="provider default" /></div>
       </div>
-
+      <button id="verifyBtn">Verify</button>
+      <span id="verifyError" class="error"></span>
+    </div>
+    <div id="verifyResult" hidden>
       <div class="panel">
-        <h3>Health</h3>
-        <p><button onclick="checkHealth()">Run /api/v1/health</button></p>
-        <pre id="healthOutput">Waiting...</pre>
+        <div class="bar" style="margin:0 0 10px">
+          <span class="score" id="vScore"></span><span class="muted">TruthScore</span>
+          <span class="pill" id="vDecision"></span><span class="pill" id="vAction"></span>
+        </div>
+        <div class="answer" id="vText"></div>
+        <p class="muted small" id="vUsage"></p>
+      </div>
+      <div id="vClaims"></div>
+    </div>
+  </section>
+
+  <!-- BENCHMARK -->
+  <section id="tab-bench" hidden>
+    <div class="panel">
+      <h2>Run a benchmark</h2>
+      <div id="benchAgents" class="bar"></div>
+      <div class="row">
+        <div><label for="benchLimit">Tasks to run</label><input id="benchLimit" type="number" min="1" value="3" /></div>
+        <div><label for="benchJudge">Stance judge</label><select id="benchJudge"></select></div>
+      </div>
+      <button id="benchBtn">Run benchmark</button>
+      <span id="benchError" class="error"></span>
+      <div id="benchProgress" hidden style="margin-top:12px">
+        <progress id="benchBar" value="0" max="1"></progress>
+        <div class="muted small" id="benchStatus"></div>
       </div>
     </div>
-  </div>
+    <div class="panel" id="benchResult" hidden>
+      <h2>Leaderboard <span class="muted small" id="benchMeta"></span></h2>
+      <div class="scroll"><table>
+        <thead><tr><th>#</th><th>Agent</th><th>Model</th><th class="num">Chronos</th><th class="num">Truth</th><th class="num">Eff</th>
+          <th class="num">Focus %</th><th class="num">Tokens</th><th class="num">Latency</th><th class="num">Failed</th><th>Telemetry</th></tr></thead>
+        <tbody id="benchRows"></tbody>
+      </table></div>
+      <p class="muted small">ChronosScore = 0.65 x TruthScore + 0.35 x EffScore. Focus % is informational and not part of the score.</p>
+      <h2 style="margin-top:16px">Answers</h2>
+      <div id="benchTraj"></div>
+    </div>
+    <div class="panel">
+      <h2>Recent runs</h2>
+      <div class="scroll"><table><thead><tr><th>Run</th><th>Status</th><th>Tasks</th><th>Winner</th><th>Started</th><th></th></tr></thead>
+        <tbody id="benchHistory"></tbody></table></div>
+    </div>
+  </section>
 
-  <script>
-    async function callApi(url, options, outputId) {
-      const out = document.getElementById(outputId);
-      out.textContent = 'Loading...';
+  <!-- AGENTS -->
+  <section id="tab-agents" hidden>
+    <div class="panel">
+      <h2>Registered agents</h2>
+      <div class="scroll"><table><thead><tr><th>ID</th><th>Profile</th><th>Provider</th><th>Model</th><th>Runs as</th><th></th></tr></thead>
+        <tbody id="agentRows"></tbody></table></div>
+      <p class="muted small"><b>llm</b>: real model calls. <b>offline</b>: no model configured, canned answer. <b>external</b>: your own HTTP endpoint.</p>
+    </div>
+    <div class="panel">
+      <h2>Register or update an agent</h2>
+      <div class="row">
+        <div><label for="aId">Agent ID</label><input id="aId" placeholder="my_agent" /></div>
+        <div><label for="aName">Name</label><input id="aName" placeholder="My agent" /></div>
+        <div><label for="aProfile">Behaviour</label><select id="aProfile">
+          <option value="parametric_baseline">parametric_baseline (no tools)</option>
+          <option value="disciplined_verifier">disciplined_verifier (2 searches)</option>
+          <option value="unbounded_deep_research">unbounded_deep_research (many searches)</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="aProvider">Provider</label><select id="aProvider"></select></div>
+        <div><label for="aModel">Model name</label><input id="aModel" placeholder="gpt-4o-mini" /></div>
+        <div><label for="aTemp">Temperature</label><input id="aTemp" type="number" min="0" max="2" step="0.1" value="0.1" /></div>
+      </div>
+      <div class="row">
+        <div><label for="aBase">Base URL (optional, instead of a provider)</label><input id="aBase" placeholder="https://api.example.com/v1" /></div>
+        <div><label for="aKey">API key (optional)</label><input id="aKey" type="password" autocomplete="off" /></div>
+      </div>
+      <div class="row">
+        <div><label for="aEndpoint">External agent URL (optional; replaces the built-in behaviour)</label><input id="aEndpoint" placeholder="https://my-agent.example.com/run" /></div>
+      </div>
+      <label for="aSystem">Extra system prompt (optional)</label>
+      <textarea id="aSystem" style="min-height:60px"></textarea>
+      <p><button id="agentBtn">Save agent</button> <button class="ghost" id="agentDefaults">Register the 3 reference agents</button>
+        <span id="agentError" class="error"></span></p>
+    </div>
+  </section>
+
+  <!-- PROVIDERS -->
+  <section id="tab-providers" hidden>
+    <div class="panel">
+      <h2>Model providers</h2>
+      <p class="muted small">Any OpenAI-compatible endpoint works: give it a name, a base URL, an API key and a model.
+        Default LLM: <b id="defaultLlm">none</b>.</p>
+      <div class="scroll"><table><thead><tr><th>Name</th><th>Base URL</th><th>Default model</th><th>Key</th><th>Status</th><th></th></tr></thead>
+        <tbody id="providerRows"></tbody></table></div>
+      <p id="providerTest" class="small"></p>
+    </div>
+    <div class="panel">
+      <h2>Add or update a provider</h2>
+      <div class="row">
+        <div><label for="pName">Name</label><input id="pName" placeholder="my-provider" /></div>
+        <div><label for="pBase">Base URL</label><input id="pBase" placeholder="https://api.openai.com/v1" /></div>
+      </div>
+      <div class="row">
+        <div><label for="pKey">API key</label><input id="pKey" type="password" autocomplete="off" placeholder="leave empty to keep the stored key" /></div>
+        <div><label for="pModel">Default model</label><input id="pModel" placeholder="gpt-4o-mini" /></div>
+      </div>
+      <button id="providerBtn">Save provider</button> <span id="providerError" class="error"></span>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" hidden>
+    <div class="panel">
+      <h2>Dashboard settings</h2>
+      <label for="apiKey">X-API-Key (only needed when the server sets API_KEY)</label>
+      <input id="apiKey" type="password" autocomplete="off" />
+      <p class="muted small">Stored in this browser only. API reference: <a href="/docs">/docs</a></p>
+    </div>
+  </section>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (n) => Number(n ?? 0).toFixed(1);
+  const STATUS_CLASS = { VERIFIED: 'ok', STABLE: 'ok', STALE: 'bad', CONTRADICTED: 'bad', UNVERIFIED: 'warn', NEEDS_REVIEW: 'warn' };
+  const REFERENCE_AGENTS = ['parametric_baseline', 'unbounded_deep_research', 'disciplined_verifier'];
+  let providers = [];
+
+  const savedKey = (() => { try { return localStorage.getItem('chronos_api_key') || ''; } catch (_) { return ''; } })();
+  $('apiKey').value = savedKey;
+  $('apiKey').addEventListener('input', (e) => { try { localStorage.setItem('chronos_api_key', e.target.value); } catch (_) {} });
+
+  async function api(path, options = {}) {
+    const headers = { ...(options.body ? { 'Content-Type': 'application/json' } : {}) };
+    if ($('apiKey').value) headers['X-API-Key'] = $('apiKey').value;
+    const res = await fetch('/api/v1' + path, { ...options, headers });
+    const text = await res.text();
+    let data = text;
+    try { data = JSON.parse(text); } catch (_) { /* not JSON */ }
+    if (!res.ok) {
+      const detail = data && data.detail ? (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)) : text;
+      throw new Error(res.status === 401 ? 'This server needs an API key. Add it under Settings.' : `HTTP ${res.status}: ${detail}`);
+    }
+    return data;
+  }
+  const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body ?? {}) });
+
+  async function guarded(button, errorEl, fn) {
+    button.disabled = true; errorEl.textContent = '';
+    try { await fn(); } catch (err) { errorEl.textContent = err.message; } finally { button.disabled = false; }
+  }
+
+  // ---- tabs --------------------------------------------------------------------------------
+  $('tabs').addEventListener('click', (e) => {
+    const tab = e.target.dataset.tab;
+    if (!tab) return;
+    for (const b of $('tabs').children) b.classList.toggle('active', b === e.target);
+    for (const s of document.querySelectorAll('section')) s.hidden = s.id !== 'tab-' + tab;
+    if (tab === 'bench') { loadAgents(); loadHistory(); }
+    if (tab === 'agents') loadAgents();
+    if (tab === 'providers') loadProviders();
+  });
+
+  // ---- status ------------------------------------------------------------------------------
+  async function loadStatus() {
+    try {
+      const h = await api('/health');
+      $('statusBar').innerHTML =
+        `<span class="pill ok">API ${esc(h.version)}</span>` +
+        (h.search === 'tavily' ? '<span class="pill ok">Live search: Tavily</span>' : '<span class="pill warn">Search: offline fixtures (set TAVILY_API_KEY)</span>') +
+        (h.default_llm ? `<span class="pill ok">LLM: ${esc(h.default_llm.provider)} / ${esc(h.default_llm.model)}</span>` : '<span class="pill warn">No default LLM (heuristic judge, offline agents)</span>') +
+        (h.auth_required ? '<span class="pill">API key required</span>' : '');
+    } catch (err) {
+      $('statusBar').innerHTML = `<span class="pill bad">API unreachable: ${esc(err.message)}</span>`;
+    }
+  }
+
+  // ---- providers ---------------------------------------------------------------------------
+  function judgeOptions() {
+    const usable = providers.filter((p) => p.configured);
+    return '<option value="">Server default</option><option value="__off">Heuristics only (no LLM)</option>' +
+      usable.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+  }
+  function judgeOverride(selectId, modelId) {
+    const provider = $(selectId).value;
+    const model = modelId ? $(modelId).value.trim() : '';
+    if (provider === '__off') return { llm_judge: false };
+    if (!provider && !model) return {};
+    return { llm: { provider: provider || 'default', model } };
+  }
+
+  async function loadProviders() {
+    try {
+      const data = await api('/providers');
+      providers = data.providers;
+      $('defaultLlm').textContent = data.default ? `${data.default.provider} / ${data.default.model}` : 'none (set LLM_BASE_URL, LLM_API_KEY and LLM_MODEL in .env)';
+      $('providerRows').innerHTML = providers.map((p) => `<tr>
+        <td><b>${esc(p.name)}</b> <span class="muted small">${esc(p.kind)}</span></td>
+        <td>${esc(p.base_url)}</td><td>${esc(p.default_model) || '<span class="muted">-</span>'}</td>
+        <td>${esc(p.api_key) || '<span class="muted">-</span>'}</td>
+        <td>${p.configured ? '<span class="pill ok">ready</span>' : `<span class="pill">needs ${esc(p.env_var || 'key')}</span>`}</td>
+        <td style="white-space:nowrap">${p.configured ? `<button class="ghost" data-test="${esc(p.name)}" data-model="${esc(p.default_model)}">Test</button>` : ''}
+          ${p.kind === 'registered' ? `<button class="ghost danger" data-del="${esc(p.name)}">Delete</button>` : ''}</td></tr>`).join('');
+      for (const id of ['verifyJudge', 'benchJudge']) { const keep = $(id).value; $(id).innerHTML = judgeOptions(); $(id).value = keep; if ($(id).selectedIndex < 0) $(id).value = ''; }
+      const keep = $('aProvider').value;
+      $('aProvider').innerHTML = '<option value="default">default (server LLM)</option>' + providers.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}${p.configured ? '' : ' (no key)'}</option>`).join('');
+      if (keep) $('aProvider').value = keep;
+    } catch (err) { $('providerError').textContent = err.message; }
+  }
+
+  $('providerRows').addEventListener('click', async (e) => {
+    const out = $('providerTest');
+    if (e.target.dataset.test) {
+      const name = e.target.dataset.test;
+      let model = e.target.dataset.model;
+      if (!model) { model = prompt(`Model name to test on "${name}":`) || ''; if (!model) return; }
+      out.className = 'small muted'; out.textContent = `Testing ${name}...`;
       try {
-        const res = await fetch(url, options);
-        const body = await res.text();
-        let pretty = body;
-        try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch (_) { /* not JSON */ }
-        out.textContent = res.ok ? pretty : `Error ${res.status}
-${pretty}`;
-      } catch (err) {
-        out.textContent = `Request failed: ${err}`;
-      }
+        const r = await post(`/providers/${encodeURIComponent(name)}/test`, { model });
+        out.className = 'small ' + (r.ok ? '' : 'error');
+        out.textContent = r.ok ? `${name} works: model ${r.model} replied "${r.reply}" in ${r.latency_ms} ms.` : `${name} failed: ${r.error}`;
+      } catch (err) { out.className = 'small error'; out.textContent = err.message; }
+    } else if (e.target.dataset.del && confirm(`Delete provider "${e.target.dataset.del}"?`)) {
+      try { await api(`/providers/${encodeURIComponent(e.target.dataset.del)}`, { method: 'DELETE' }); loadProviders(); loadStatus(); }
+      catch (err) { out.className = 'small error'; out.textContent = err.message; }
     }
+  });
 
-    function runVerify() {
-      const text = document.getElementById('verifyInput').value;
-      return callApi('/api/v1/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, mode: 'advisory', options: { persist: true, include_evidence: true } })
-      }, 'verifyOutput');
-    }
+  $('providerBtn').addEventListener('click', () => guarded($('providerBtn'), $('providerError'), async () => {
+    await post('/providers', { name: $('pName').value.trim(), base_url: $('pBase').value.trim(), api_key: $('pKey').value, default_model: $('pModel').value.trim() });
+    $('pKey').value = '';
+    await loadProviders(); loadStatus();
+  }));
 
-    function checkHealth() {
-      return callApi('/api/v1/health', {}, 'healthOutput');
+  // ---- verify ------------------------------------------------------------------------------
+  function highlight(text, claims) {
+    let html = '', cursor = 0;
+    for (const c of [...claims].sort((a, b) => a.offsets[0] - b.offsets[0])) {
+      const [start, end] = c.offsets;
+      if (start < cursor) continue;
+      html += esc(text.slice(cursor, start)) + `<mark class="${esc(c.status)}" title="${esc(c.status)}">${esc(text.slice(start, end))}</mark>`;
+      cursor = end;
     }
-  </script>
+    return html + esc(text.slice(cursor));
+  }
+
+  function claimCard(c) {
+    const evidence = (c.evidence || []).map((ev) => {
+      const link = /^https?:\/\//.test(ev.url) ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer">${esc(ev.title)}</a>` : esc(ev.title);
+      const date = ev.published_at ? ev.published_at.slice(0, 10) : 'no date';
+      return `<p class="small"><span class="pill">${esc(ev.stance)}</span> ${link} <span class="muted">(${esc(ev.publisher)}, ${esc(date)})</span><br><span class="muted">${esc(ev.excerpt.slice(0, 280))}</span></p>`;
+    }).join('');
+    return `<div class="claim">
+      <span class="pill ${STATUS_CLASS[c.status] || ''}">${esc(c.status)}</span> <span class="pill">${esc(c.category)}</span>
+      <p><b>${esc(c.text)}</b></p><p class="muted">${esc(c.reason)}</p>
+      ${c.suggested_patch ? `<p class="patch"><b>Suggested fix:</b> ${esc(c.suggested_patch)}</p>` : ''}
+      <p class="muted small">support ${fmt(c.support_confidence)} · freshness ${fmt(c.freshness_score)} · source quality ${fmt(c.source_quality)}</p>
+      ${evidence}</div>`;
+  }
+
+  $('verifyBtn').addEventListener('click', () => guarded($('verifyBtn'), $('verifyError'), async () => {
+    const text = $('verifyInput').value;
+    const r = await post('/verify', { text, mode: $('verifyMode').value, options: { persist: true, include_evidence: true, ...judgeOverride('verifyJudge', 'verifyModel') } });
+    $('verifyResult').hidden = false;
+    $('vScore').textContent = fmt(r.truth_score);
+    const bad = r.overall_decision === 'stale_detected';
+    $('vDecision').textContent = r.overall_decision.replace(/_/g, ' ');
+    $('vDecision').className = 'pill ' + (bad ? 'bad' : r.overall_decision === 'clean' ? 'ok' : 'warn');
+    $('vAction').textContent = 'action: ' + r.policy.recommended_action.replace(/_/g, ' ');
+    $('vAction').className = 'pill ' + (r.policy.recommended_action === 'block' ? 'bad' : '');
+    $('vText').innerHTML = highlight(text, r.claims);
+    const u = r.usage;
+    $('vUsage').textContent = `${r.claims.length} claims · ${u.tavily_search_calls} searches (${u.cache_hits} cached, ${u.credits_used} credits)` +
+      ` · judge: ${u.stance_judge}${u.judge_model ? ' (' + u.judge_model + ', ' + u.llm_tokens + ' tokens)' : ''}` +
+      (u.offline_mode ? ' · search offline' : '') + (u.llm_errors ? ` · ${u.llm_errors} judge errors, fell back to heuristics` : '');
+    $('vClaims').innerHTML = r.claims.map(claimCard).join('') || '<p class="muted">No checkable claims found.</p>';
+  }));
+
+  // ---- agents ------------------------------------------------------------------------------
+  async function loadAgents() {
+    try {
+      const agents = await api('/agents');
+      const cls = { llm: 'ok', external: 'ok', offline: 'warn' };
+      $('agentRows').innerHTML = agents.map((a) => `<tr><td><b>${esc(a.agent_id)}</b><br><span class="muted small">${esc(a.name)}</span></td>
+        <td>${esc(a.profile)}</td><td>${esc(a.provider)}</td><td>${esc(a.model_name)}</td>
+        <td><span class="pill ${cls[a.execution] || ''}">${esc(a.execution)}</span></td>
+        <td><button class="ghost danger" data-del="${esc(a.agent_id)}">Delete</button></td></tr>`).join('')
+        || '<tr><td colspan="6" class="muted">No agents yet. Register the 3 reference agents below.</td></tr>';
+      const checked = new Set([...document.querySelectorAll('#benchAgents input:checked')].map((i) => i.value));
+      const first = !document.querySelector('#benchAgents input');
+      $('benchAgents').innerHTML = agents.map((a) => `<label style="font-weight:400;margin:0"><input type="checkbox" style="width:auto" value="${esc(a.agent_id)}"
+        ${first || checked.has(a.agent_id) ? 'checked' : ''}> ${esc(a.agent_id)} <span class="muted small">(${esc(a.execution)})</span></label>`).join('')
+        || '<span class="muted">No agents registered yet. Add some in the Agents tab.</span>';
+    } catch (err) { $('agentError').textContent = err.message; }
+  }
+
+  $('agentRows').addEventListener('click', async (e) => {
+    if (!e.target.dataset.del || !confirm(`Delete agent "${e.target.dataset.del}"?`)) return;
+    try { await api(`/agents/${encodeURIComponent(e.target.dataset.del)}`, { method: 'DELETE' }); loadAgents(); }
+    catch (err) { $('agentError').textContent = err.message; }
+  });
+
+  $('agentBtn').addEventListener('click', () => guarded($('agentBtn'), $('agentError'), async () => {
+    const id = $('aId').value.trim();
+    await post('/agents/register', {
+      agent_id: id, name: $('aName').value.trim() || id, profile: $('aProfile').value,
+      endpoint_or_command: $('aEndpoint').value.trim(),
+      model_config: { provider: $('aProvider').value, model_name: $('aModel').value.trim() || 'default', temperature: Number($('aTemp').value || 0.1),
+        base_url: $('aBase').value.trim(), api_key: $('aKey').value },
+      prompts: { system_prompt: $('aSystem').value, instruction_template: '{{prompt}}' },
+    });
+    $('aKey').value = '';
+    await loadAgents();
+  }));
+
+  $('agentDefaults').addEventListener('click', () => guarded($('agentDefaults'), $('agentError'), async () => {
+    const model = $('aModel').value.trim();
+    for (const id of REFERENCE_AGENTS) {
+      await post('/agents/register', { agent_id: id, name: id.replace(/_/g, ' '), profile: id,
+        model_config: { provider: $('aProvider').value, model_name: model || 'default', base_url: $('aBase').value.trim(), api_key: $('aKey').value } });
+    }
+    await loadAgents();
+  }));
+
+  // ---- benchmark ---------------------------------------------------------------------------
+  function renderRun(run, trajectories) {
+    $('benchResult').hidden = false;
+    $('benchMeta').textContent = `${run.benchmark_id} · ${run.status} · telemetry: ${run.telemetry_source}` + (run.error ? ` · ${run.error}` : '');
+    $('benchRows').innerHTML = run.leaderboard.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.agent_id)}</b></td><td>${esc(r.model_name)}</td>
+      <td class="num"><b>${fmt(r.chronos_score)}</b></td><td class="num">${fmt(r.truth_score)}</td><td class="num">${fmt(r.eff_score)}</td>
+      <td class="num">${fmt(r.focus_coverage)}</td><td class="num">${r.tokens_used}</td><td class="num">${(r.latency_ms / 1000).toFixed(1)}s</td>
+      <td class="num">${r.tasks_failed}</td><td>${esc(r.telemetry_source)}</td></tr>`).join('')
+      || '<tr><td colspan="11" class="muted">No scores yet.</td></tr>';
+    $('benchTraj').innerHTML = (trajectories || []).map((t) => {
+      let calls = []; try { calls = JSON.parse(t.invoked_tool_calls_json); } catch (_) {}
+      return `<details class="claim"><summary><b>${esc(t.agent_id)}</b> · ${esc(t.task_id)} · truth ${fmt(t.truth_score)} · eff ${fmt(t.eff_score)}
+        · ${t.step_count} steps · ${t.prompt_tokens + t.completion_tokens} tokens${t.error ? ' · <span class="error">failed</span>' : ''}</summary>
+        ${t.error ? `<p class="error">${esc(t.error)}</p>` : `<p>${esc(t.raw_output)}</p>`}
+        ${calls.length ? `<p class="muted small">Searches: ${calls.map((c) => esc(c.query) + (c.repeated ? ' (repeat)' : '')).join(' | ')}</p>` : ''}</details>`;
+    }).join('');
+  }
+
+  async function showRun(id) {
+    const d = await api(`/benchmarks/${encodeURIComponent(id)}`);
+    renderRun(d, d.trajectories);
+    return d;
+  }
+
+  async function loadHistory() {
+    try {
+      const runs = await api('/benchmarks?limit=10');
+      $('benchHistory').innerHTML = runs.map((r) => `<tr><td>${esc(r.benchmark_id)}</td>
+        <td><span class="pill ${r.status === 'completed' ? 'ok' : r.status === 'failed' ? 'bad' : 'warn'}">${esc(r.status)}</span></td>
+        <td>${r.tasks_done}/${r.tasks_total}</td><td>${r.leaderboard[0] ? esc(r.leaderboard[0].agent_id) + ' (' + fmt(r.leaderboard[0].chronos_score) + ')' : '-'}</td>
+        <td class="muted small">${esc(String(r.started_at).slice(0, 19).replace('T', ' '))}</td>
+        <td><button class="ghost" data-run="${esc(r.benchmark_id)}">Open</button></td></tr>`).join('')
+        || '<tr><td colspan="6" class="muted">No runs yet.</td></tr>';
+    } catch (err) { $('benchError').textContent = err.message; }
+  }
+  $('benchHistory').addEventListener('click', (e) => { if (e.target.dataset.run) showRun(e.target.dataset.run).catch((err) => { $('benchError').textContent = err.message; }); });
+
+  $('benchBtn').addEventListener('click', () => guarded($('benchBtn'), $('benchError'), async () => {
+    const agent_ids = [...document.querySelectorAll('#benchAgents input:checked')].map((i) => i.value);
+    if (!agent_ids.length) throw new Error('Select at least one agent.');
+    const limit = parseInt($('benchLimit').value, 10);
+    const judge = judgeOverride('benchJudge');
+    if (judge.llm_judge === false) throw new Error('Benchmarks use the server default judge or a named provider.');
+    let run = await post('/benchmarks/run', { agent_ids, background: true, ...(limit > 0 ? { limit_tasks: limit } : {}), ...(judge.llm ? { judge_llm: judge.llm } : {}) });
+    $('benchProgress').hidden = false;
+    while (run.status === 'running') {
+      $('benchBar').max = run.tasks_total || 1; $('benchBar').value = run.tasks_done;
+      $('benchStatus').textContent = `Running ${run.benchmark_id}: ${run.tasks_done}/${run.tasks_total} agent-tasks done`;
+      await new Promise((r) => setTimeout(r, 1000));
+      run = await showRun(run.benchmark_id);
+    }
+    $('benchBar').max = run.tasks_total || 1; $('benchBar').value = run.tasks_done;
+    $('benchStatus').textContent = `${run.benchmark_id}: ${run.status}`;
+    await showRun(run.benchmark_id);
+    loadHistory();
+    if (run.status !== 'completed') throw new Error(run.error || 'Benchmark failed.');
+  }));
+
+  loadStatus();
+  loadProviders();
+</script>
 </body>
 </html>

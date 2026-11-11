@@ -16,9 +16,12 @@ Scoring equations implemented in this repository:
 - Efficiency: $\text{EffScore} = 100 \times (0.50e^{-T/T_b} + 0.30e^{-L/L_b} + 0.20(1-R_{loop}))$
 - Composite: $\text{ChronosScore} = 0.65 \times \text{TruthScore} + 0.35 \times \text{EffScore}$
 
+> **How to run and configure everything (model providers, agents, API reference) is in `README.md`.**
+> This file keeps the project background, the demo script and the submission checklist.
+
 ## 2. What Is Already Implemented (Code Level)
 
-Implemented end-to-end MVP aligned with your document:
+Implemented end to end, aligned with your document:
 
 1. FastAPI service with required endpoints:
    - GET /api/v1/health
@@ -29,8 +32,10 @@ Implemented end-to-end MVP aligned with your document:
    - GET /api/v1/verification/{id}
    - GET /api/v1/claims/{id}/history
    - POST /api/v1/claims/{id}/reverify
-   - POST /api/v1/benchmarks/run
-   - GET /api/v1/benchmarks/{id}
+   - POST /api/v1/benchmarks/run (optionally in the background)
+   - GET /api/v1/benchmarks, /api/v1/benchmarks/{id}, /api/v1/benchmarks/suites
+   - POST/GET/DELETE /api/v1/providers, POST /api/v1/providers/{name}/test
+   - GET /api/v1/verifications, DELETE /api/v1/agents/{id}
 
 2. Data model and persistence (SQLModel + SQLite by default):
    - agent_manifests
@@ -47,30 +52,36 @@ Implemented end-to-end MVP aligned with your document:
    - atomic claim extraction
    - volatility classification
    - live evidence retrieval via Tavily connector (+ SQLite cache)
-   - stance inference (supports/contradicts/contextual)
+   - stance judging by an LLM (any OpenAI-compatible provider), with a heuristic fallback
    - per-claim and run-level scoring
 
 4. Benchmarking flow:
-   - dataset-driven tasks from temporal_traps.json
-   - 3 reference agent profiles (baseline/deep-research/disciplined)
-   - telemetry estimator for token/latency/loop metrics (Bifrost-compatible placeholder)
-   - leaderboard output with TruthScore, EffScore, ChronosScore
+   - dataset-driven tasks from temporal_traps.json (15 tasks)
+   - 3 reference agent profiles (baseline/deep-research/disciplined) that call the model set in the agent manifest
+   - external agents in any framework through an HTTP endpoint
+   - real telemetry: provider-reported tokens, measured latency, repeated-search loop detection
+     (estimated only when no model is configured)
+   - persisted leaderboard with TruthScore, EffScore, ChronosScore
 
-5. Basic dashboard starter:
-   - static UI for health check and quick verification call
+5. Dashboard:
+   - verify with highlighted claims, evidence and suggested fixes
+   - benchmark runs with live progress and a leaderboard
+   - agent and model-provider management
 
 6. Tests (`python -m pytest`):
-   - unit tests: scoring, temporal classifier, claim extractor, stance detection
-   - API tests: repeated verify, stale detection, strict mode, reverify/history, full benchmark run
+   - unit tests: scoring, temporal classifier, claim extractor, stance detection, LLM client, LLM judge
+   - API tests: verify, strict mode, reverify/history, providers, LLM-driven and external agents,
+     background benchmarks, API-key protection
    - tests run offline against a temporary database (see tests/conftest.py)
 
 ## 3. Repository Layout You Now Have
 
 - apps/api: FastAPI application
 - apps/web: lightweight frontend starter
-- agents: reference agents and schema helper
+- agents: reference agent profiles and the agent runtime
+- integrations/llm: OpenAI-compatible client and provider resolution
 - integrations/tavily: Tavily client + normalizer + cache
-- integrations/bifrost_gateway: telemetry adapter placeholder
+- integrations/bifrost_gateway: telemetry estimator used for offline agents
 - packages: claim, temporal, evidence, scoring, contracts
 - benchmarks/datasets: temporal trap prompts
 - tests: unit tests
@@ -92,7 +103,7 @@ Credit strategy (important for hackathon demo stability):
 1. Keep MAX_CLAIMS_PER_REQUEST at 8 to 10 during demo.
 2. Keep MAX_SEARCHES_PER_CLAIM at 2 or 3.
 3. Enable Tavily cache (already enabled by default) so repeated demos do not burn credits.
-4. Run benchmark with limit_tasks=3 first, then full 5 tasks for final screenshots.
+4. Run benchmark with limit_tasks=3 first, then the full 15 tasks for final screenshots.
 
 ## 5. What To Do Outside VS Code
 
@@ -102,14 +113,15 @@ Do these tasks in external portals/services:
    - create/generate TAVILY_API_KEY
    - confirm credit balance and rate limits
 
-2. Model providers (if using real routed LLMs):
-   - create GROQ_API_KEY and/or GEMINI_API_KEY
+2. Model providers:
+   - get a key for any OpenAI-compatible provider and set it in .env or register it in the
+     dashboard (see "Model providers" in README.md)
    - set usage limits so demo cannot exceed budget
 
 3. Optional Bifrost deployment:
    - run Bifrost gateway separately
    - configure route policies and provider keys there
-   - set BIFROST_GATEWAY_URL accordingly
+   - set BIFROST_GATEWAY_URL and use the provider name "bifrost"
 
 4. Hackathon submission assets:
    - record short demo video
@@ -137,8 +149,10 @@ Copy-Item .env.example .env
 
 4. Edit .env and set at least:
    - TAVILY_API_KEY=your_key
-   - Without a key the API runs in offline mode: only a built-in Pydantic fixture returns evidence
+   - LLM_BASE_URL, LLM_API_KEY and LLM_MODEL (or a preset key such as GROQ_API_KEY)
+   - Without a Tavily key the API runs in offline mode: only a built-in Pydantic fixture returns evidence
      and every response reports `"offline_mode": true` under `usage`.
+   - Without an LLM the agents return canned answers and the stance judge is heuristic.
 
 5. Start API:
 
@@ -226,28 +240,21 @@ docker compose -f infra/docker-compose.yml up --build
 2. Register 3 agents with different profiles.
 3. Run verify on a known stale statement (Pydantic V1 style APIs).
 4. Show claim status = STALE and the concrete suggested patch (e.g. replace `dict` with `model_dump`). Repeat with `"mode": "strict"` to show `recommended_action: block`.
-5. Run benchmark suite and show leaderboard + scores.
+5. Run the benchmark from the dashboard's Benchmark tab and show the live progress, leaderboard and answers.
 6. Show how cache reduces repeated Tavily calls.
 7. Reverify one claim and show claim history endpoint.
 
 ## 8. What Is Left To Reach Full Production Completion
 
-This MVP is submission-ready for hackathon demonstration, but for production-grade completion add:
-
-1. Real Bifrost wire interception integration for exact model/tool payload capture.
-2. Real NLI-based stance classifier model for stronger contradiction detection.
-3. PostgreSQL + Alembic migrations for cloud deployment.
-4. Full Next.js dashboard (leaderboard tables, trajectory waterfall, claim explorer).
-5. Auth, rate limits, audit logs, and stricter injection defenses.
-6. CI pipeline with integration tests and benchmark regression snapshots.
+See `NEXT_STEPS.md` sections 3 and 4. In short: ground-truth answers per task, rate limiting,
+Postgres + Alembic for hosts with an ephemeral disk, a job queue for benchmarks, and encrypted
+storage for provider keys.
 
 ## 9. Verification of Current Build Status
 
-Run `python -m pytest`. The suite covers repeated verification calls, the full 3-agent x 5-task
-benchmark, reverify/history, and starting from a fresh clone (the `data/` folder is created automatically).
-
-Known limits (see NEXT_STEPS.md): stance detection is heuristic, agents are canned stubs, and
-efficiency telemetry is estimated (`telemetry_source: "estimated"` in benchmark responses).
+Run `python -m pytest`. The suite is offline (fixtures for Tavily, an in-process fake for the model
+API) and covers verification, the LLM judge, providers, LLM-driven and external agents, background
+benchmarks, API-key protection and upgrading an older database.
 
 ## 10. Quick Final Checklist Before You Submit
 

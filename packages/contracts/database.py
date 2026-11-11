@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
+from sqlalchemy import inspect, text
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 from packages.contracts.settings import get_settings, resolve_project_path
@@ -31,6 +31,21 @@ class AgentManifestDB(SQLModel, table=True):
     mcp_servers_json: str = "[]"
     tools_schema_json: str = "[]"
     created_at: datetime = Field(default_factory=utcnow)
+    # Which reference behaviour to run: parametric_baseline | unbounded_deep_research | disciplined_verifier.
+    profile: str = ""
+    # Optional per-agent OpenAI-compatible connection. Empty values fall back to the named provider.
+    base_url: str = ""
+    api_key: str = ""
+
+
+class LLMProviderDB(SQLModel, table=True):
+    """A named OpenAI-compatible endpoint registered at runtime (name + base URL + key + default model)."""
+
+    id: str = Field(primary_key=True)
+    base_url: str
+    api_key: str = ""
+    default_model: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class BenchmarkRunDB(SQLModel, table=True):
@@ -39,6 +54,27 @@ class BenchmarkRunDB(SQLModel, table=True):
     status: str = "running"
     started_at: datetime = Field(default_factory=utcnow)
     completed_at: Optional[datetime] = None
+    tasks_total: int = 0
+    tasks_done: int = 0
+    telemetry_source: str = "estimated"
+    error: str = ""
+
+
+class BenchmarkScoreDB(SQLModel, table=True):
+    """Persisted leaderboard row, so finished runs can be re-displayed."""
+
+    id: str = Field(primary_key=True)
+    benchmark_id: str = Field(index=True)
+    agent_id: str
+    model_name: str = ""
+    truth_score: float = 0.0
+    eff_score: float = 0.0
+    chronos_score: float = 0.0
+    focus_coverage: float = 0.0
+    tokens_used: int = 0
+    latency_ms: int = 0
+    tasks_failed: int = 0
+    telemetry_source: str = "estimated"
 
 
 class AgentTrajectoryDB(SQLModel, table=True):
@@ -57,6 +93,10 @@ class AgentTrajectoryDB(SQLModel, table=True):
     loop_count: int = 0
     raw_output: str = ""
     eff_score: float = 0.0
+    truth_score: float = 0.0
+    focus_coverage: float = 0.0
+    telemetry_source: str = "estimated"
+    error: str = ""
 
 
 class VerificationRunDB(SQLModel, table=True):
@@ -149,6 +189,33 @@ engine = create_engine(database_url, echo=False, connect_args=connect_args)
 
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns()
+
+
+def _add_missing_columns(engine=engine) -> None:
+    """Tiny forward-only migration: add columns that exist on the models but not in the database.
+
+    create_all() never alters existing tables, so a database created by an older version of the app
+    would otherwise fail with "no such column". Every added column has a default, so this is safe.
+    """
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table in SQLModel.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            existing = {col["name"] for col in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing:
+                    continue
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {column.type.compile(engine.dialect)}'
+                default = getattr(column.default, "arg", None)
+                if isinstance(default, bool):
+                    ddl += f" DEFAULT {int(default)}"
+                elif isinstance(default, (int, float)):
+                    ddl += f" DEFAULT {default}"
+                elif isinstance(default, str):
+                    ddl += " DEFAULT '" + default.replace("'", "''") + "'"
+                conn.execute(text(ddl))
 
 
 @contextmanager

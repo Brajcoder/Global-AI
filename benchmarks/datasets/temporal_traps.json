@@ -28,5 +28,65 @@
     "cohort": "stable_and_insufficient",
     "prompt": "Differentiate stable facts from unverifiable claims and explain when to skip live search.",
     "expected_focus": ["stable", "unverified", "policy"]
+  },
+  {
+    "id": "task_software_002",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "In the OpenAI Python SDK version 1 and later, how do you create a chat completion, and which pre-1.0 call style no longer works?",
+    "expected_focus": ["client", "chat.completions.create", "ChatCompletion"]
+  },
+  {
+    "id": "task_software_003",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "How should a FastAPI application run startup and shutdown logic today, and which older decorator-based approach is deprecated?",
+    "expected_focus": ["lifespan", "on_event", "deprecated"]
+  },
+  {
+    "id": "task_software_004",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "What is the recommended way to get the current UTC time as a timezone-aware datetime in modern Python, and which older function is deprecated?",
+    "expected_focus": ["timezone", "utcnow", "deprecated"]
+  },
+  {
+    "id": "task_software_005",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "Which Python versions are currently supported upstream, and which widely used older versions have reached end of life?",
+    "expected_focus": ["end of life", "supported", "security"]
+  },
+  {
+    "id": "task_software_006",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "What is the current stable major version of React, and name one legacy API that was removed or deprecated on the way to it?",
+    "expected_focus": ["react", "version", "deprecated"]
+  },
+  {
+    "id": "task_pricing_002",
+    "cohort": "changed_facts_software_pricing",
+    "prompt": "A README written two years ago quotes a cloud API price per million tokens. Explain how to confirm today's price and how to present the answer.",
+    "expected_focus": ["pricing page", "date", "per million tokens"]
+  },
+  {
+    "id": "task_leadership_002",
+    "cohort": "changed_facts_leadership_compliance",
+    "prompt": "A user asks who the current CEO of a large public technology company is. Describe how to answer without repeating a possibly outdated name.",
+    "expected_focus": ["ceo", "official", "as of"]
+  },
+  {
+    "id": "task_compliance_001",
+    "cohort": "changed_facts_leadership_compliance",
+    "prompt": "Summarize how obligations under the EU AI Act phase in over time and how an agent should confirm which obligations are already in force.",
+    "expected_focus": ["ai act", "in force", "official"]
+  },
+  {
+    "id": "task_conflict_002",
+    "cohort": "conflicting_sources",
+    "prompt": "An official changelog and a popular blog post disagree about whether a library function was removed. Which source should win, and how should the answer express the conflict?",
+    "expected_focus": ["changelog", "primary source", "conflict"]
+  },
+  {
+    "id": "task_stable_002",
+    "cohort": "stable_and_insufficient",
+    "prompt": "State the time complexity of binary search and explain whether this fact needs live verification.",
+    "expected_focus": ["log n", "stable", "no live"]
   }
 ]

@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from fastapi import HTTPException
 
+from integrations.llm.client import LLMConfig
+from integrations.llm.providers import default_llm, resolve_llm
 from integrations.tavily.client import TavilyClient
 from integrations.tavily.normalizer import normalize_evidence_items
 from packages.claim_engine.extractor import AtomicClaim, extract_atomic_claims
@@ -24,12 +27,8 @@ from packages.contracts.database import (
 )
 from packages.contracts.schemas import ClaimResult, Evidence, VerifyRequest, VerifyResponse
 from packages.contracts.settings import get_settings
-from packages.evidence_engine.stancer import (
-    infer_stance,
-    outdated_terms_in_claim,
-    source_quality_score,
-    support_confidence,
-)
+from packages.evidence_engine.llm_judge import Judgement, judge_claim
+from packages.evidence_engine.stancer import source_quality_score
 from packages.scoring_engine.scoring import (
     UNCHECKED_FRESHNESS,
     UNCHECKED_SOURCE_QUALITY,
@@ -67,8 +66,31 @@ async def verify_text(request: VerifyRequest, session, request_id: str | None = 
     )
     payload_by_index = dict(zip(live_indexes, search_results))
 
+    # Judge stance for every claim that got evidence: with the LLM when one is configured,
+    # with heuristics otherwise (judge_claim itself falls back if the LLM call fails).
+    judge_config = _judge_config(request, session)
+    evidence_by_index = {
+        i: normalize_evidence_items(p) for i, p in payload_by_index.items() if not isinstance(p, BaseException)
+    }
+    outcomes = await asyncio.gather(
+        *(judge_claim(judge_config, extracted[i].text, rows) for i, rows in evidence_by_index.items())
+    )
+    outcome_by_index = dict(zip(evidence_by_index, outcomes))
+
     claim_results: list[ClaimResult] = []
-    usage = {"tavily_search_calls": 0, "cache_hits": 0, "search_errors": 0, "credits_used": 0, "evidence_items_scored": 0}
+    usage = {
+        "tavily_search_calls": 0,
+        "cache_hits": 0,
+        "search_errors": 0,
+        "credits_used": 0,
+        "evidence_items_scored": 0,
+        "llm_calls": sum(o.llm_calls for o in outcomes),
+        "llm_tokens": sum(o.llm_tokens for o in outcomes),
+        "llm_errors": sum(1 for o in outcomes if o.llm_error),
+    }
+    for outcome in outcomes:
+        if outcome.llm_error:
+            logger.warning("LLM judge fell back to heuristics: %s", outcome.llm_error)
 
     for idx, (claim, decision) in enumerate(zip(extracted, decisions)):
         if not decision.verify_live:
@@ -85,9 +107,11 @@ async def verify_text(request: VerifyRequest, session, request_id: str | None = 
 
         usage["cache_hits"] += int(bool(payload.get("_cache_hit")))
         usage["credits_used"] += int(payload.get("_credits", 0))
-        evidence_rows = normalize_evidence_items(payload)
+        evidence_rows = evidence_by_index[idx]
         usage["evidence_items_scored"] += len(evidence_rows)
-        claim_results.append(_score_live_claim(claim, decision, evidence_rows, request))
+        claim_results.append(
+            _score_live_claim(claim, decision, evidence_rows, outcome_by_index[idx].judgements, request)
+        )
 
     t_score = round(truth_score([_score_row(c) for c in claim_results]), 2)
     overall = _overall_decision(claim_results)
@@ -101,13 +125,43 @@ async def verify_text(request: VerifyRequest, session, request_id: str | None = 
         created_at=created,
         claims=claim_results,
         policy={"mode": request.mode, "recommended_action": _recommended_action(request.mode, overall)},
-        usage={**usage, "offline_mode": tavily.offline},
+        usage={
+            **usage,
+            "offline_mode": tavily.offline,
+            "stance_judge": _judge_label(judge_config, outcomes),
+            "judge_model": judge_config.model if judge_config else "",
+        },
     )
 
     if request.options.persist:
         _persist(session, response, request, req_id, trajectory_id, start, usage)
 
     return response
+
+
+def _judge_config(request: VerifyRequest, session) -> LLMConfig | None:
+    if not request.options.llm_judge:
+        return None
+    override = request.options.llm
+    if override is not None:
+        config = resolve_llm(session, override.provider, override.model, override.base_url, override.api_key)
+        if config is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"LLM provider '{override.provider or 'default'}' is not configured. "
+                "Register it with POST /api/v1/providers, or pass base_url, api_key and model.",
+            )
+        return config
+    return default_llm(session) if get_settings().llm_judge_enabled else None
+
+
+def _judge_label(config: LLMConfig | None, outcomes) -> str:
+    if config is None:
+        return "heuristic"
+    sources = {j.source for o in outcomes for j in o.judgements}
+    if not sources or sources == {"llm"}:
+        return "llm"
+    return "heuristic" if sources == {"heuristic"} else "mixed"
 
 
 def _unchecked_claim(claim: AtomicClaim, decision: VolatilityDecision) -> ClaimResult:
@@ -146,23 +200,31 @@ def _search_failed_claim(claim: AtomicClaim, decision: VolatilityDecision, error
     )
 
 
-def _score_live_claim(claim: AtomicClaim, decision: VolatilityDecision, evidence_rows: list[dict[str, Any]], request: VerifyRequest) -> ClaimResult:
+def _score_live_claim(
+    claim: AtomicClaim,
+    decision: VolatilityDecision,
+    evidence_rows: list[dict[str, Any]],
+    judgements: list[Judgement],
+    request: VerifyRequest,
+) -> ClaimResult:
     evidences: list[Evidence] = []
     supporting: list[tuple[float, float, float]] = []
     contradicting: list[tuple[float, float, float]] = []
     replacements: dict[str, str | None] = {}
+    correction = ""
 
-    for er in evidence_rows:
-        stance = infer_stance(claim.text, er["excerpt"])
+    for er, judgement in zip(evidence_rows, judgements):
+        stance = judgement.stance
         q = source_quality_score(er["url"])
-        conf = support_confidence(claim.text, er["excerpt"], stance)
+        conf = judgement.confidence
         fresh = freshness_score(er.get("published_at"), er["retrieved_at"], decision.half_life_days)
 
         if stance == "supports":
             supporting.append((conf, fresh, q))
         elif stance == "contradicts":
             contradicting.append((conf, fresh, q))
-            for term in outdated_terms_in_claim(claim.text, er["excerpt"]):
+            correction = correction or judgement.correction
+            for term in judgement.outdated:
                 replacements.setdefault(term.old, term.new)
 
         evidences.append(
@@ -184,7 +246,11 @@ def _score_live_claim(claim: AtomicClaim, decision: VolatilityDecision, evidence
             if replacements
             else "Retrieved evidence contradicts this claim."
         )
-        patch = _replacement_patch(replacements) or "Review against current primary source and update this statement."
+        patch = (
+            _replacement_patch(replacements)
+            or (f"Per current sources: {correction}" if correction else "")
+            or "Review against current primary source and update this statement."
+        )
         decisive = contradicting
     elif contradicting and supporting:
         status = "NEEDS_REVIEW"
@@ -324,6 +390,17 @@ def _persist(session, response: VerifyResponse, request: VerifyRequest, req_id: 
             latency_ms=int((datetime.now(timezone.utc) - start).total_seconds() * 1000),
         )
     )
+    if usage.get("llm_calls"):
+        session.add(
+            ProviderUsageDB(
+                id=new_id("pu"),
+                run_id=response.verification_id,
+                provider=f"llm:{response.usage.get('judge_model', '')}",
+                operation="stance_judge",
+                request_count=int(usage["llm_calls"]),
+                credits_or_tokens=float(usage.get("llm_tokens", 0)),
+            )
+        )
     session.commit()
 
 
@@ -336,6 +413,8 @@ def manifest_to_fingerprint(manifest: AgentManifestDB) -> dict[str, Any]:
         "agent_id": manifest.id,
         "name": manifest.name,
         "framework": manifest.framework,
+        "profile": manifest.profile,
+        "provider": manifest.provider,
         "model_name": manifest.model_name,
         "temperature": manifest.temperature,
         "top_p": manifest.top_p,

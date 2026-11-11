@@ -79,7 +79,7 @@ def test_benchmark_runs_all_tasks_for_all_agents(client, registered_agents):
 
     detail = client.get(f"/api/v1/benchmarks/{body['benchmark_id']}").json()
     assert detail["run"]["status"] == "completed"
-    assert len(detail["trajectories"]) == 5 * len(registered_agents)
+    assert len(detail["trajectories"]) == body["tasks_total"] == 15 * len(registered_agents)
 
 
 def test_benchmark_rejects_unknown_agent(client):
