@@ -59,9 +59,10 @@ Implemented end-to-end MVP aligned with your document:
 5. Basic dashboard starter:
    - static UI for health check and quick verification call
 
-6. Tests:
-   - scoring unit tests
-   - temporal classifier tests
+6. Tests (`python -m pytest`):
+   - unit tests: scoring, temporal classifier, claim extractor, stance detection
+   - API tests: repeated verify, stale detection, strict mode, reverify/history, full benchmark run
+   - tests run offline against a temporary database (see tests/conftest.py)
 
 ## 3. Repository Layout You Now Have
 
@@ -119,11 +120,13 @@ Do these tasks in external portals/services:
 
 ### 6.1 Local Run (Fastest)
 
-1. Open terminal in project root: chronosbench-veritygate
-2. Install dependencies:
+1. Open a terminal in the repository root (the folder containing `requirements.txt`).
+2. Create a virtual environment and install dependencies (Python 3.11+):
 
 ```powershell
-C:/Users/PC/AppData/Local/Programs/Python/Python313/python.exe -m pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
 3. Create env file:
@@ -134,11 +137,13 @@ Copy-Item .env.example .env
 
 4. Edit .env and set at least:
    - TAVILY_API_KEY=your_key
+   - Without a key the API runs in offline mode: only a built-in Pydantic fixture returns evidence
+     and every response reports `"offline_mode": true` under `usage`.
 
 5. Start API:
 
 ```powershell
-C:/Users/PC/AppData/Local/Programs/Python/Python313/python.exe -m uvicorn apps.api.main:app --reload --port 8000
+python -m uvicorn apps.api.main:app --reload --port 8000
 ```
 
 6. Open:
@@ -220,7 +225,7 @@ docker compose -f infra/docker-compose.yml up --build
 1. Show /docs and explain architecture blocks.
 2. Register 3 agents with different profiles.
 3. Run verify on a known stale statement (Pydantic V1 style APIs).
-4. Show claim status = STALE and suggested patch.
+4. Show claim status = STALE and the concrete suggested patch (e.g. replace `dict` with `model_dump`). Repeat with `"mode": "strict"` to show `recommended_action: block`.
 5. Run benchmark suite and show leaderboard + scores.
 6. Show how cache reduces repeated Tavily calls.
 7. Reverify one claim and show claim history endpoint.
@@ -238,11 +243,11 @@ This MVP is submission-ready for hackathon demonstration, but for production-gra
 
 ## 9. Verification of Current Build Status
 
-Checked in this workspace:
+Run `python -m pytest`. The suite covers repeated verification calls, the full 3-agent x 5-task
+benchmark, reverify/history, and starting from a fresh clone (the `data/` folder is created automatically).
 
-1. Unit tests passing.
-2. FastAPI app import passing.
-3. Health/register/verify endpoint smoke tests passing.
+Known limits (see NEXT_STEPS.md): stance detection is heuristic, agents are canned stubs, and
+efficiency telemetry is estimated (`telemetry_source: "estimated"` in benchmark responses).
 
 ## 10. Quick Final Checklist Before You Submit
 

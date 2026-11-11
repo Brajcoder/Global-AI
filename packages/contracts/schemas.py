@@ -61,14 +61,15 @@ class VerifyContext(BaseModel):
 
 
 class VerifyOptions(BaseModel):
-    max_claims: int = 10
+    # Also capped server-side by MAX_CLAIMS_PER_REQUEST to protect Tavily credits.
+    max_claims: int = Field(default=10, ge=1, le=50)
     include_evidence: bool = True
     generate_patch: bool = True
     persist: bool = True
 
 
 class VerifyRequest(BaseModel):
-    text: str
+    text: str = Field(max_length=20000)
     mode: Literal["advisory", "strict"] = "advisory"
     context: VerifyContext = Field(default_factory=VerifyContext)
     options: VerifyOptions = Field(default_factory=VerifyOptions)
@@ -120,9 +121,9 @@ class VerifyResponse(BaseModel):
 
 
 class BenchmarkRunRequest(BaseModel):
-    agent_ids: list[str]
+    agent_ids: list[str] = Field(min_length=1)
     suite_id: str = "temporal_traps_v1"
-    limit_tasks: int | None = None
+    limit_tasks: int | None = Field(default=None, ge=1)
 
 
 class BenchmarkAgentScore(BaseModel):
@@ -138,3 +139,5 @@ class BenchmarkRunResponse(BaseModel):
     benchmark_id: str
     status: str
     leaderboard: list[BenchmarkAgentScore]
+    # "estimated" until real Bifrost wire telemetry is captured; EffScore is a proxy until then.
+    telemetry_source: str = "estimated"

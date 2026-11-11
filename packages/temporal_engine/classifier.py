@@ -13,34 +13,46 @@ class VolatilityDecision:
     half_life_days: int
 
 
-HIGH_VOL_PATTERNS = [r"stock", r"real[- ]?time", r"uptime", r"live"]
-TIME_SENSITIVE_PATTERNS = [
-    r"version",
-    r"sdk",
-    r"api",
-    r"price",
-    r"pricing",
-    r"cost",
-    r"ceo",
-    r"leader",
-    r"regulation",
-    r"compliance",
-    r"deprecated",
+# All patterns use word boundaries: plain substrings matched "deliver" as "live",
+# "rapid" as "api" and "conversion" as "version".
+HIGH_VOL_PATTERNS = [r"\bstocks?\b", r"\breal[- ]?time\b", r"\buptime\b", r"\blive\b", r"\boutages?\b"]
+SOFTWARE_PATTERNS = [
+    r"\bversions?\b",
+    r"\bv\d+(\.\d+)*\b",
+    r"\bsdks?\b",
+    r"\bapis?\b",
+    r"\bdeprecat\w*",
+    r"\breleases?\b",
+    # Code-level API usage such as .dict(), model_dump() or @validator.
+    r"\.\w+\(\)",
+    r"\b\w+\(\)",
+    r"@\w+",
 ]
-MODERATE_PATTERNS = [r"capability", r"feature", r"roadmap", r"milestone"]
-OPINION_PATTERNS = [r"i think", r"best", r"prefer", r"opinion", r"likely"]
+ORG_PRICING_PATTERNS = [
+    r"\bpric(e|es|ing)\b",
+    r"\bcosts?\b",
+    r"\$\d",
+    r"\bceo\b",
+    r"\bleader(s|ship)?\b",
+    r"\bregulations?\b",
+    r"\bcompliance\b",
+]
+MODERATE_PATTERNS = [r"\bcapabilit(y|ies)\b", r"\bfeatures?\b", r"\broadmap\b", r"\bmilestones?\b"]
+OPINION_PATTERNS = [r"\bi think\b", r"\bin my opinion\b", r"\bi prefer\b", r"\bi believe\b"]
 
 
 def classify_claim(claim: str) -> VolatilityDecision:
     c = claim.lower()
 
-    if _has_any(c, OPINION_PATTERNS):
-        return VolatilityDecision("opinion", "opinion", False, False, 0)
+    # Checkable signals take priority over hedging words: "X is likely the best API" still needs checking.
     if _has_any(c, HIGH_VOL_PATTERNS):
         return VolatilityDecision("live_status", "highly_volatile", True, True, 1)
-    if _has_any(c, TIME_SENSITIVE_PATTERNS):
-        category = "software_version" if re.search(r"version|sdk|api|deprecated", c) else "pricing_or_org"
-        return VolatilityDecision(category, "time_sensitive", True, True, 90)
+    if _has_any(c, SOFTWARE_PATTERNS):
+        return VolatilityDecision("software_version", "time_sensitive", True, True, 90)
+    if _has_any(c, ORG_PRICING_PATTERNS):
+        return VolatilityDecision("pricing_or_org", "time_sensitive", True, True, 90)
+    if _has_any(c, OPINION_PATTERNS):
+        return VolatilityDecision("opinion", "opinion", False, False, 0)
     if _has_any(c, MODERATE_PATTERNS):
         return VolatilityDecision("product_capability", "moderately_stable", False, True, 365)
 
